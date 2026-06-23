@@ -756,7 +756,15 @@ HRESULT CDirect3DEvents9::OnDrawPrimitive(IDirect3DDevice9* pDevice, IDirect3DDe
         // but only for 3D world geometry (not pre-transformed 2D elements like the radar/HUD).
         // This prevents transparent pixels (e.g. fence holes, vegetation cutouts) from writing to
         // the z-buffer and blocking objects behind them — emulating PS2 per-pixel z-write behavior.
-        if (g_pDeviceState->RenderState.ALPHABLENDENABLE && g_pDeviceState->RenderState.ZWRITEENABLE && !g_pDeviceState->VertexDeclState.PositionT)
+        // Only standard alpha-blended geometry (SRCALPHA / INVSRCALPHA), like fence and vegetation
+        // cutouts, should get the dual-pass z-write split. Additive and other blend modes (neon
+        // glows, coronas, light effects) must keep their original single-pass look. Forcing the
+        // alpha-test split + per-pixel z-write on those makes them z-fight and smear at grazing
+        // angles (e.g. neon decals lying flat on a road).
+        const bool bStandardAlphaBlend = g_pDeviceState->RenderState.SRCBLEND == D3DBLEND_SRCALPHA &&
+                                         g_pDeviceState->RenderState.DESTBLEND == D3DBLEND_INVSRCALPHA;
+        if (g_pDeviceState->RenderState.ALPHABLENDENABLE && g_pDeviceState->RenderState.ZWRITEENABLE && !g_pDeviceState->VertexDeclState.PositionT &&
+            bStandardAlphaBlend)
         {
             // Save current alpha test state
             const DWORD dwOrigAlphaTestEnable = g_pDeviceState->RenderState.ALPHATESTENABLE;
@@ -1007,7 +1015,15 @@ HRESULT CDirect3DEvents9::OnDrawIndexedPrimitive(IDirect3DDevice9* pDevice, IDir
         // but only for 3D world geometry (not pre-transformed 2D elements like the radar/HUD).
         // This prevents transparent pixels (e.g. fence holes, vegetation cutouts) from writing to
         // the z-buffer and blocking objects behind them — emulating PS2 per-pixel z-write behavior.
-        if (g_pDeviceState->RenderState.ALPHABLENDENABLE && g_pDeviceState->RenderState.ZWRITEENABLE && !g_pDeviceState->VertexDeclState.PositionT)
+        // Only standard alpha-blended geometry (SRCALPHA / INVSRCALPHA), like fence and vegetation
+        // cutouts, should get the dual-pass z-write split. Additive and other blend modes (neon
+        // glows, coronas, light effects) must keep their original single-pass look. Forcing the
+        // alpha-test split + per-pixel z-write on those makes them z-fight and smear at grazing
+        // angles (e.g. neon decals lying flat on a road).
+        const bool bStandardAlphaBlend = g_pDeviceState->RenderState.SRCBLEND == D3DBLEND_SRCALPHA &&
+                                         g_pDeviceState->RenderState.DESTBLEND == D3DBLEND_INVSRCALPHA;
+        if (g_pDeviceState->RenderState.ALPHABLENDENABLE && g_pDeviceState->RenderState.ZWRITEENABLE && !g_pDeviceState->VertexDeclState.PositionT &&
+            bStandardAlphaBlend)
         {
             // Save current alpha test state
             const DWORD dwOrigAlphaTestEnable = g_pDeviceState->RenderState.ALPHATESTENABLE;
