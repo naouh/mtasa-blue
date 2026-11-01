@@ -12,6 +12,7 @@
 #include "StdInc.h"
 #include <net/SyncStructures.h>
 #include <game/C3DMarkers.h>
+#include <game/CCheckpoints.h>
 #include <game/CAnimBlendAssocGroup.h>
 #include <game/CAnimBlendAssociation.h>
 #include <game/CAnimBlendHierarchy.h>
@@ -502,6 +503,9 @@ CClientGame::~CClientGame()
     g_pMultiplayer->SetRenderEverythingBarRoadsHandler(nullptr);
     g_pMultiplayer->SetChokingHandler(NULL);
     g_pMultiplayer->SetPreWeatherUpdateHandler(NULL);
+    // The fixed time step state lives in multiplayer_sa and would otherwise survive a disconnect
+    g_pMultiplayer->SetFixedTimeStepEnabled(false);
+    g_pMultiplayer->SetFixedTimeStepRate(FIXED_TIME_STEP_DEFAULT_RATE);
     g_pMultiplayer->SetPreWorldProcessHandler(NULL);
     g_pMultiplayer->SetPostWorldProcessHandler(NULL);
     g_pMultiplayer->SetPostWorldProcessPedsAfterPreRenderHandler(nullptr);
@@ -1133,6 +1137,9 @@ void CClientGame::DoPulses()
 {
     TIMING_CHECKPOINT("-CClientGame::DoPulsePostFrame");
 
+    // The frame is drawn: from here on (network, sync, Lua timers) the world is the simulation's, not the displayed one
+    g_pMultiplayer->RestoreFixedTimeStepWorld();
+
     // TODO: (pxd) Useless, cleanup checkpoints on #4428
     TIMING_CHECKPOINT("+CClientGame::DoPulses");
 
@@ -1317,6 +1324,10 @@ void CClientGame::DoPulses()
 
         // Get rid of deleted GUI elements
         g_pCore->GetGUI()->CleanDeadPool();
+
+        // Scripts drawing over the frame (nametags, markers, podium labels) project element positions to the screen:
+        // they must see the world as it was just drawn, not the simulation state the sync code above worked on
+        g_pMultiplayer->ApplyFixedTimeStepRender();
 
         // Allow scripted dxSetRenderTarget for old scripts
         g_pCore->GetGraphics()->GetRenderItemManager()->EnableSetRenderTargetOldVer(true);
@@ -3946,7 +3957,29 @@ void CClientGame::PostWorldProcessHandler()
     // CWorld::Process has just overwritten ped headings, restore script-set ones before onClientPreRender, sync and rendering read them
     m_pManager->GetPedManager()->ReapplyScriptRotations();
 
+    // 3D markers must be flagged as used before C3dMarkers::Update (later in CGame::Process) frees the
+    // idle ones, so this stays in the world-process hook whatever the mode
     m_pManager->GetMarkerManager()->DoPulse();
+
+    // This hook fires once per simulation step. Normally that is once per rendered frame, but with the
+    // fixed time step the two differ, and the pre-render work has to follow the frames (see IdleHandler).
+    if (!g_pMultiplayer->IsFixedTimeStepEnabled())
+        DoPreRenderPulses();
+}
+
+void CClientGame::DoPreRenderPulses()
+{
+    // Markers and coronas re-arm their "render me this frame" state and the game consumes it when
+    // rendering, so with the fixed time step this runs again before every rendered frame or they flicker
+    if (g_pMultiplayer->IsFixedTimeStepEnabled() && !g_pMultiplayer->DidFixedTimeStepRunThisFrame())
+    {
+        // The game only places checkpoint markers (CCheckpoints::Update) and activates placed 3D markers
+        // (C3dMarkers::Update) inside the simulation step, and rendering clears them again: a frame
+        // without a step has to redo that work itself or it shows no markers
+        m_pManager->GetMarkerManager()->DoPulse();
+        g_pGame->GetCheckpoints()->Update();
+        g_pGame->Get3DMarkers()->Update();
+    }
     m_pManager->GetPointLightsManager()->DoPulse();
     m_pManager->GetObjectManager()->DoPulse();
 
@@ -3997,6 +4030,15 @@ void CClientGame::IdleHandler()
 
     // Extrapolation test - Change the pulse order to reduce latency (Has side effects for peds)
     DoPulses2(true);
+
+    // With the fixed time step the world-process hook does not fire on frames without a simulation
+    // step; the idle handler runs once per rendered frame. The pulses above worked on the true world,
+    // the render phase starts here: onClientPreRender sees the entities where they are drawn.
+    if (g_pMultiplayer->IsFixedTimeStepEnabled())
+    {
+        g_pMultiplayer->ApplyFixedTimeStepRender();
+        DoPreRenderPulses();
+    }
 
     g_pCore->SetDummyProgressUpdateAlways(false);
 }
@@ -6211,6 +6253,9 @@ bool CClientGame::SetWorldSpecialProperty(const WorldSpecialProperty property, c
         case WorldSpecialProperty::VEHICLE_ENGINE_AUTOSTART:
             SetVehicleEngineAutoStartEnabled(enabled);
             break;
+        case WorldSpecialProperty::FIXEDTIMESTEP:
+            g_pMultiplayer->SetFixedTimeStepEnabled(enabled);
+            break;
         default:
             return false;
     }
@@ -6259,6 +6304,8 @@ bool CClientGame::IsWorldSpecialProperty(const WorldSpecialProperty property)
             return g_pGame->IsVehicleBurnExplosionsEnabled();
         case WorldSpecialProperty::VEHICLE_ENGINE_AUTOSTART:
             return IsVehicleEngineAutoStartEnabled();
+        case WorldSpecialProperty::FIXEDTIMESTEP:
+            return g_pMultiplayer->IsFixedTimeStepEnabled();
     }
 
     return false;
@@ -7064,6 +7111,8 @@ void CClientGame::ResetWorldProperties(const ResetWorldPropsInfo& resetPropsInfo
         m_pVehicleManager->SetSpawnFlyingComponentEnabled(true);
         g_pGame->SetVehicleBurnExplosionsEnabled(true);
         SetVehicleEngineAutoStartEnabled(true);
+        g_pMultiplayer->SetFixedTimeStepEnabled(false);
+        g_pMultiplayer->SetFixedTimeStepRate(FIXED_TIME_STEP_DEFAULT_RATE);
     }
 
     // Reset all setWorldProperty to default

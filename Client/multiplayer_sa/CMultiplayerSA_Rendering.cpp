@@ -10,6 +10,7 @@
 
 #include "StdInc.h"
 #include <game/RenderWare.h>
+#include "CMultiplayerSA_FixedTimeStep.h"
 extern CCoreInterface*           g_pCore;
 GameEntityRenderHandler*         pGameEntityRenderHandler = nullptr;
 PreRenderSkyHandler*             pPreRenderSkyHandlerHandler = nullptr;
@@ -103,7 +104,10 @@ void OnMY_CEntity_Render_Pre(CEntitySAInterface* pEntity)
     ms_Rendering = pEntity;
 
     if (ms_Rendering)
+    {
+        FixedTimeStep::DebugOnEntityRender(ms_Rendering);            // TEMP (development only)
         CallGameEntityRenderHandler(ms_Rendering);
+    }
 }
 
 void OnMY_CEntity_Render_Post()
@@ -453,6 +457,9 @@ static void __declspec(naked) HOOK_CTimer_Update()
     // clang-format on
 
     g_pCore->OnGameTimerUpdate();
+
+    // Fixed time step mode primes CTimer here so the delta computed below has the fixed length
+    FixedTimeStep::OnTimerUpdate();
 
     // clang-format off
     __asm

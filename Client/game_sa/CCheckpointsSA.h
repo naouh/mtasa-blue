@@ -36,4 +36,5 @@ public:
                                   const SharedUtil::SColor color);
     CCheckpoint* FindFreeMarker();
     CCheckpoint* FindMarker(DWORD identifier);
+    void         Update() override;
 };

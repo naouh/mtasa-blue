@@ -58,6 +58,7 @@ void CLuaWorldDefs::LoadFunctions()
         {"getRainLevel", GetRainLevel},
         {"getMoonSize", GetMoonSize},
         {"getFPSLimit", GetFPSLimit},
+        {"getFixedTimeStepRate", ArgumentParser<GetFixedTimeStepRate>},
         {"getBirdsEnabled", GetBirdsEnabled},
         {"getCoronaReflectionsEnabled", ArgumentParser<GetCoronaReflectionsEnabled>},
         {"getWorldProperty", ArgumentParser<GetWorldProperty>},
@@ -100,6 +101,8 @@ void CLuaWorldDefs::LoadFunctions()
         {"setPedTargetingMarkerEnabled", SetPedTargetingMarkerEnabled},
         {"setMoonSize", SetMoonSize},
         {"setFPSLimit", SetFPSLimit},
+        {"setFixedTimeStepRate", ArgumentParser<SetFixedTimeStepRate>},
+        {"setFixedTimeStepDebugFlags", ArgumentParser<SetFixedTimeStepDebugFlags>},            // TEMP (development only)
         {"setCoronaReflectionsEnabled", ArgumentParser<SetCoronaReflectionsEnabled>},
         {"setWorldProperty", ArgumentParser<SetWorldProperty>},
 
@@ -1298,6 +1301,28 @@ bool CLuaWorldDefs::SetWorldSpecialPropertyEnabled(const WorldSpecialProperty pr
         g_pNet->DeallocateNetBitStream(stream);
     }
 
+    return true;
+}
+
+bool CLuaWorldDefs::SetFixedTimeStepRate(float rate)
+{
+    // bool setFixedTimeStepRate ( float stepsPerSecond )
+    // Simulation steps per second used while the "fixedtimestep" world special property is enabled.
+    // 50 is one native GTA time step unit; a rate of N makes the physics behave like an N FPS cap.
+    if (!(rate >= FIXED_TIME_STEP_MIN_RATE && rate <= FIXED_TIME_STEP_MAX_RATE))
+        throw std::invalid_argument(SString("Rate must be between %.0f and %.0f", FIXED_TIME_STEP_MIN_RATE, FIXED_TIME_STEP_MAX_RATE));
+
+    return g_pMultiplayer->SetFixedTimeStepRate(rate);
+}
+
+float CLuaWorldDefs::GetFixedTimeStepRate() noexcept
+{
+    return g_pMultiplayer->GetFixedTimeStepRate();
+}
+
+bool CLuaWorldDefs::SetFixedTimeStepDebugFlags(unsigned int flags) noexcept
+{
+    g_pMultiplayer->SetFixedTimeStepDebugFlags(flags);
     return true;
 }
 

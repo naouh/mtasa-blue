@@ -40,6 +40,10 @@ enum class eBitStreamVersion : unsigned short
     // YYYY-MM-DD
     // Name,
 
+    // World special property "fixedtimestep" in the map info packet
+    // 2026-10-31
+    FixedTimeStep,
+
     // This allows us to automatically increment the BitStreamVersion when things are added to this enum.
     // Make sure you only add things above this comment.
     Next,

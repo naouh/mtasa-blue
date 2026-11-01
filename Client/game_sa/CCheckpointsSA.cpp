@@ -77,3 +77,9 @@ CCheckpoint* CCheckpointsSA::FindMarker(DWORD identifier)
 
     return nullptr;
 }
+
+void CCheckpointsSA::Update()
+{
+    // CCheckpoints::Update
+    reinterpret_cast<void(__cdecl*)()>(0x7229C0)();
+}

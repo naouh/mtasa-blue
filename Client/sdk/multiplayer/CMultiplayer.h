@@ -22,6 +22,12 @@
 
 class CEntitySAInterface;
 
+// Simulation steps per second accepted by the fixed time step mode (world special property "fixedtimestep").
+// 50 is one native GTA time step unit (ms_fTimeStep == 1.0); a rate of N reproduces the physics of an N FPS cap.
+constexpr float FIXED_TIME_STEP_MIN_RATE = 20.0f;
+constexpr float FIXED_TIME_STEP_MAX_RATE = 300.0f;
+constexpr float FIXED_TIME_STEP_DEFAULT_RATE = 50.0f;
+
 struct SRwResourceStats
 {
     uint uiTextures;
@@ -451,6 +457,19 @@ public:
 
     virtual bool IsRapidVehicleStopFixEnabled() const noexcept = 0;
     virtual void SetRapidVehicleStopFixEnabled(bool enabled) = 0;
+
+    // Fixed time step simulation (world special property "fixedtimestep"), see CMultiplayerSA_FixedTimeStep.cpp
+    virtual bool  IsFixedTimeStepEnabled() const noexcept = 0;
+    virtual void  SetFixedTimeStepEnabled(bool enabled) = 0;
+    virtual float GetFixedTimeStepRate() const noexcept = 0;
+    virtual bool  SetFixedTimeStepRate(float rate) = 0;
+    // True when the current rendered frame ran at least one simulation step (always true outside the mode)
+    virtual bool  DidFixedTimeStepRunThisFrame() const noexcept = 0;
+    virtual void  ApplyFixedTimeStepRender() = 0;   // place the world for this frame, between the idle pulses and onClientPreRender
+    virtual void  RestoreFixedTimeStepWorld() = 0;  // back to the true world, before the post-frame pulses and the network code
+    // TEMP (development only): bit 1 = no camera interpolation, bit 2 = no entity interpolation,
+    // bit 4 = do not pin the time step on render-only frames, bit 8 = interpolate vehicles only
+    virtual void  SetFixedTimeStepDebugFlags(unsigned int flags) = 0;
 
     virtual void SetPedTargetingMarkerEnabled(bool bEnabled) = 0;
     virtual bool IsPedTargetingMarkerEnabled() = 0;

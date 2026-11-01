@@ -59,6 +59,9 @@ public:
     LUA_DECLARE(SetWaveHeight);
     LUA_DECLARE(SetGarageOpen);
     static bool SetWorldSpecialPropertyEnabled(const WorldSpecialProperty property, const bool enabled) noexcept;
+    static bool  SetFixedTimeStepRate(float rate);
+    static float GetFixedTimeStepRate() noexcept;
+    static bool  SetFixedTimeStepDebugFlags(unsigned int flags) noexcept;            // TEMP (development only)
     LUA_DECLARE(SetBlurLevel);
     LUA_DECLARE(ResetBlurLevel);
     LUA_DECLARE(SetJetpackMaxHeight);

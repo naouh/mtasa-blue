@@ -16,6 +16,7 @@
 #include <game/CPedDamageResponse.h>
 #include <game/CEventList.h>
 #include <game/CEventDamage.h>
+#include "CMultiplayerSA_FixedTimeStep.h"
 
 class CEventDamageSAInterface;
 
@@ -5465,7 +5466,8 @@ static void CGameProcessWithTiming()
     TIMING_CHECKPOINT("+CGame_Process");
     {
         void(__cdecl * CGame__Process)() = reinterpret_cast<decltype(CGame__Process)>(0x53BEE0);
-        CGame__Process();
+        // Fixed time step mode runs 0..N simulation steps per rendered frame instead of exactly one
+        FixedTimeStep::ProcessGame(CGame__Process);
     }
     TIMING_CHECKPOINT("-CGame_Process");
 }

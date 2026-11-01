@@ -1,0 +1,146 @@
+# Fork-only test build. This file lives in mtasa-fork-launcher and is injected into the
+# disposable test-build/* snapshot branches, so it can never end up in a branch meant for upstream.
+name: Test build
+
+on:
+  push:
+    branches: ['test-build/**']
+
+# A newer snapshot makes the running one pointless, so free the runners straight away.
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: client-win32
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/cache@v5
+        id: cache-dxfiles
+        with:
+          path: utils/DXFiles
+          key: dxfiles-0001
+
+      - name: Download DirectX
+        if: steps.cache-dxfiles.outputs.cache-hit != 'true'
+        run: Invoke-WebRequest https://mirror-cdn.multitheftauto.com/bdata/DXFiles.zip -OutFile utils/DXFiles.zip
+        shell: powershell
+
+      - name: Extract DirectX
+        if: steps.cache-dxfiles.outputs.cache-hit != 'true'
+        run: Expand-Archive -Path utils/DXFiles.zip -DestinationPath utils/DXFiles
+        shell: powershell
+
+      - name: Install CEF
+        run: utils\premake5 install_cef
+
+      - name: Install data files
+        run: utils\premake5 install_data
+
+      - name: Run Build
+        run: win-build.bat release win32
+        shell: cmd
+        env:
+          DXSDK_DIR: './utils/DXFiles/'
+          CI: 'true'
+
+      - name: Create build artifacts
+        run: utils\premake5 compose_files
+
+      # win-build.bat ends on `pause`, so a failed compile still exits 0. Without this check a broken
+      # build would be uploaded and the launcher would happily install a client that cannot start.
+      - name: Verify client files
+        shell: powershell
+        run: |
+          $required = @(
+            'Multi Theft Auto.exe',
+            'MTA/core.dll',
+            'MTA/game_sa.dll',
+            'MTA/multiplayer_sa.dll',
+            'MTA/netc.dll',
+            'mods/deathmatch/client.dll'
+          )
+          $missing = $required | Where-Object { -not (Test-Path "InstallFiles/$_") }
+          if ($missing) { throw "Missing client files: $($missing -join ', ')" }
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: mta-client-win32
+          retention-days: 14
+          path: |
+            InstallFiles/
+            !InstallFiles/tests/**
+
+  server:
+    name: server-linux-x64
+    runs-on: ubuntu-latest
+    container:
+      image: docker://ghcr.io/multitheftauto/mtasa-blue-build:latest
+    env:
+      # Links libstdc++ statically: the image uses GCC 15, whose libstdc++ is missing from most hosts.
+      GLIBC_COMPAT: 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Build
+        run: /docker-entrypoint.sh --arch=x64
+
+      # The image has no CA certificates, which premake needs to reach the mirror over HTTPS. install_data
+      # also fetches the arm net modules, but only an x64 build ran so their folders don't exist yet.
+      - name: Install net module
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+          mkdir -p Bin/server/arm Bin/server/arm64
+          utils/premake5 install_data
+
+      - name: Create build artifacts
+        run: utils/premake5 compose_files
+
+      # The update archive holds binaries only: extracting it over an existing server must not reset
+      # mtaserver.conf or acl.xml. The tarballs also preserve the exec bit, which artifact zips would lose.
+      - name: Package server
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=InstallFiles/server
+          mkdir -p stage/x64 stage/mods/deathmatch artifact
+          cp "$source/mta-server64" stage/
+          cp "$source"/x64/*.so stage/x64/
+          rm -f stage/x64/net_d.so
+          chmod +x stage/mta-server64
+          tar -C stage -czf artifact/mta-fork-server-linux-x64-update.tar.gz mta-server64 x64
+          cp -r "$source"/mods/deathmatch/. stage/mods/deathmatch/
+          tar -C stage -czf artifact/mta-fork-server-linux-x64-full.tar.gz mta-server64 x64 mods
+          {
+            echo "commit: $GITHUB_SHA"
+            echo "ref: $GITHUB_REF_NAME"
+            echo "min-glibc: $(objdump -T stage/mta-server64 stage/x64/*.so | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1)"
+            for file in stage/mta-server64 stage/x64/*.so; do
+              echo "$(basename "$file"): $(objdump -T "$file" | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1) needs $(readelf -d "$file" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | tr '\n' ' ')"
+            done
+          } | tee artifact/BUILD-INFO.txt
+
+      # Starting the server proves the net module accepts this build, which is the likeliest failure on a fork
+      # (net.so is a prebuilt binary). ASE stays off so that CI never announces itself to the master server.
+      - name: Smoke test server
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke=$(mktemp -d)
+          tar -C "$smoke" -xzf artifact/mta-fork-server-linux-x64-full.tar.gz
+          sed -i -e 's|<ase>1</ase>|<ase>0</ase>|' -e 's|<donotbroadcastlan>0<|<donotbroadcastlan>1<|' \
+            "$smoke/mods/deathmatch/mtaserver.conf"
+          (cd "$smoke" && timeout -s KILL 30 ./mta-server64 -n -u < /dev/null > server.log 2>&1) || true
+          cat "$smoke/server.log"
+          grep -q 'Server started and is ready to accept connections' "$smoke/server.log"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: mta-server-linux-x64
+          retention-days: 14
+          compression-level: 0
+          path: artifact/

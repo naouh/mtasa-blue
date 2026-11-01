@@ -97,6 +97,7 @@ enum class WorldSpecialProperty
     FLYINGCOMPONENTS,
     VEHICLEBURNEXPLOSIONS,
     VEHICLE_ENGINE_AUTOSTART,
+    FIXEDTIMESTEP,
 };
 DECLARE_ENUM_CLASS(WorldSpecialProperty);
 

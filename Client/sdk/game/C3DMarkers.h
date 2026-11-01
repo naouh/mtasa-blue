@@ -23,4 +23,7 @@ public:
     virtual C3DMarker* FindFreeMarker() = 0;
     virtual C3DMarker* FindMarker(DWORD Identifier) = 0;
     virtual void       ReinitMarkers() = 0;
+    // C3dMarkers::Update: activates the markers placed since the last render. The game runs it once per
+    // simulation step; with the fixed time step it also has to run before every rendered frame.
+    virtual void       Update() = 0;
 };

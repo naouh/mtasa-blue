@@ -345,6 +345,15 @@ public:
     bool IsRapidVehicleStopFixEnabled() const noexcept override { return m_isRapidVehicleStopFixEnabled; };
     void SetRapidVehicleStopFixEnabled(bool enabled) override;
 
+    bool  IsFixedTimeStepEnabled() const noexcept override;
+    void  SetFixedTimeStepEnabled(bool enabled) override;
+    float GetFixedTimeStepRate() const noexcept override;
+    bool  SetFixedTimeStepRate(float rate) override;
+    bool  DidFixedTimeStepRunThisFrame() const noexcept override;
+    void  ApplyFixedTimeStepRender() override;
+    void  RestoreFixedTimeStepWorld() override;
+    void  SetFixedTimeStepDebugFlags(unsigned int flags) override;
+
     void SetPedTargetingMarkerEnabled(bool bEnable);
     bool IsPedTargetingMarkerEnabled();
     bool IsConnected();

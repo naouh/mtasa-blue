@@ -630,6 +630,7 @@ private:
     void                              PreWeatherUpdateHandler();
     void                              PreWorldProcessHandler();
     void                              PostWorldProcessHandler();
+    void                              DoPreRenderPulses();
     void                              PostWorldProcessPedsAfterPreRenderHandler();
     void                              CAnimBlendAssocDestructorHandler(CAnimBlendAssociationSAInterface* pThis);
     CAnimBlendAssociationSAInterface* AddAnimationHandler(RpClump* pClump, AssocGroupId animGroup, AnimationId animID);

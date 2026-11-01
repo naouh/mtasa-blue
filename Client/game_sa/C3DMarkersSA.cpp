@@ -117,3 +117,9 @@ void C3DMarkersSA::ReinitMarkers()
     shutdownMarkers();
     initMarkers();
 }
+
+void C3DMarkersSA::Update()
+{
+    // C3dMarkers::Update
+    reinterpret_cast<void(__cdecl*)()>(0x7227B0)();
+}

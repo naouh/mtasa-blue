@@ -21,4 +21,7 @@ public:
                                           const SharedUtil::SColor color) = 0;
     virtual CCheckpoint* FindFreeMarker() = 0;
     virtual CCheckpoint* FindMarker(DWORD identifier) = 0;
+    // CCheckpoints::Update: places the 3D marker of every live checkpoint (and rotates it). The game runs
+    // it once per simulation step; with the fixed time step it also has to run before every rendered frame.
+    virtual void         Update() = 0;
 };

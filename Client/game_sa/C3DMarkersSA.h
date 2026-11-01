@@ -33,4 +33,5 @@ public:
     C3DMarker* FindFreeMarker();
     C3DMarker* FindMarker(DWORD Identifier) override;
     void       ReinitMarkers();
+    void       Update() override;
 };

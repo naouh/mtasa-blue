@@ -1205,6 +1205,48 @@ static bool __fastcall HOOK_CPhysical__ApplyCollisionAlt(CPhysicalSAInterface* t
     return result;
 }
 
+// Fixes volumetric clouds drifting with the wind once per rendered frame instead of once per time step
+// (CClouds::VolumetricCloudsRender adds m_fVolumetricCloudWindMoveFactor * WindDir to the cloud position unscaled).
+//     0x7167 4E | D9 05 90 53 8D 00 | fld  dword ptr ds:[8D5390h]   ; m_fVolumetricCloudWindMoveFactor
+//     0x716754 | D8 0D E0 13 C8 00 | fmul dword ptr ds:[C813E0h]   ; CWeather::WindDir.x
+#define HOOKPOS_CClouds__VolumetricCloudsRender_WindX  0x71674E
+#define HOOKSIZE_CClouds__VolumetricCloudsRender_WindX 6
+static const unsigned int     RETURN_CClouds__VolumetricCloudsRender_WindX = 0x716754;
+static void __declspec(naked) HOOK_CClouds__VolumetricCloudsRender_WindX()
+{
+    MTA_VERIFY_HOOK_LOCAL_SIZE;
+
+    // clang-format off
+    __asm
+    {
+        fld ds:[0x8D5390]           // m_fVolumetricCloudWindMoveFactor
+        fmul ds:[0xB7CB5C]          // CTimer::ms_fTimeStep
+        fdiv kOriginalTimeStep      // 1.666f
+        jmp RETURN_CClouds__VolumetricCloudsRender_WindX
+    }
+    // clang-format on
+}
+
+//     0x716760 | D9 05 E4 13 C8 00 | fld  dword ptr ds:[C813E4h]   ; CWeather::WindDir.y
+//     0x716766 | D8 0D 90 53 8D 00 | fmul dword ptr ds:[8D5390h]   ; m_fVolumetricCloudWindMoveFactor
+#define HOOKPOS_CClouds__VolumetricCloudsRender_WindY  0x716766
+#define HOOKSIZE_CClouds__VolumetricCloudsRender_WindY 6
+static const unsigned int     RETURN_CClouds__VolumetricCloudsRender_WindY = 0x71676C;
+static void __declspec(naked) HOOK_CClouds__VolumetricCloudsRender_WindY()
+{
+    MTA_VERIFY_HOOK_LOCAL_SIZE;
+
+    // clang-format off
+    __asm
+    {
+        fmul ds:[0x8D5390]          // m_fVolumetricCloudWindMoveFactor
+        fmul ds:[0xB7CB5C]          // CTimer::ms_fTimeStep
+        fdiv kOriginalTimeStep      // 1.666f
+        jmp RETURN_CClouds__VolumetricCloudsRender_WindY
+    }
+    // clang-format on
+}
+
 #define HOOKPOS_CPhysical__ApplyAirResistance  0x544D29
 #define HOOKSIZE_CPhysical__ApplyAirResistance 5
 static const unsigned int     RETURN_CPhysical__ApplyAirResistance = 0x544D4D;
@@ -1394,6 +1436,8 @@ void CMultiplayerSA::InitHooks_FrameRateFixes()
 
     EZHookInstall(CWeapon_Update);
     EZHookInstall(CDoor__Process_ChassisImpulse);
+    EZHookInstall(CClouds__VolumetricCloudsRender_WindX);
+    EZHookInstall(CClouds__VolumetricCloudsRender_WindY);
     EZHookInstall(CDoor__Process_ChassisAngle);
 
     EZHookInstall(CAutomobile__ProcessControl_SleepThreshold);
